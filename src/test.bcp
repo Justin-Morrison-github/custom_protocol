@@ -1,0 +1,8 @@
+MESSAGE A[1] 1 "Description 1" {
+    FIELD a: 0|1|+ "A";
+}
+
+MESSAGE B[2] 2 "Description 2" {
+    FIELD Count1: 0|8|+ "Positive counter";
+    FIELD count2: 8|8|- "Negative counter";
+}
