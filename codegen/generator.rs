@@ -193,6 +193,159 @@ impl EncodingFunction {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum DecodingFunction {
+    ReadBool,
+    ReadU8,
+    ReadU16,
+    ReadU32,
+    ReadU8NBits(u8),
+    ReadU16NBits(u8),
+    ReadU32NBits(u8),
+    ReadI8,
+    ReadI16,
+    ReadI32,
+    ReadI8NBits(u8),
+    ReadI16NBits(u8),
+    ReadI32NBits(u8),
+}
+
+impl DecodingFunction {
+    pub fn to_call_tokens(&self, value: TokenStream) -> TokenStream {
+        match self {
+            DecodingFunction::ReadBool => quote! {
+                let #value = reader.read_bool()?;
+            },
+            DecodingFunction::ReadU8 => quote! {
+                let #value = reader.read_u8()?;
+            },
+            DecodingFunction::ReadI8 => quote! {
+                let #value = reader.read_i8()?;
+            },
+            DecodingFunction::ReadU16 => quote! {
+                let #value = reader.read_u16()?;
+            },
+            DecodingFunction::ReadI16 => quote! {
+                let #value = reader.read_i16()?;
+            },
+            DecodingFunction::ReadU32 => quote! {
+                let #value = reader.read_u32()?;
+            },
+            DecodingFunction::ReadI32 => quote! {
+                let #value = reader.read_i32()?;
+            },
+            DecodingFunction::ReadU8NBits(len) => {
+                let len = usize::from(*len);
+                quote! {
+                    let #value = reader.read_u8_n_bits(#len)?;
+                }
+            }
+            DecodingFunction::ReadU16NBits(len) => {
+                let len = usize::from(*len);
+                quote! {
+                    let #value = reader.read_u16_n_bits(#len)?;
+                }
+            }
+            DecodingFunction::ReadU32NBits(len) => {
+                let len = usize::from(*len);
+                quote! {
+                    let #value = reader.read_u32_n_bits(#len)?;
+                }
+            }
+            DecodingFunction::ReadI8NBits(len) => {
+                let len = usize::from(*len);
+                quote! {
+                    let #value = reader.read_i8_n_bits(#len)?;
+                }
+            }
+            DecodingFunction::ReadI16NBits(len) => {
+                let len = usize::from(*len);
+                quote! {
+                    let #value = reader.read_i16_n_bits(#len)?;
+                }
+            }
+            DecodingFunction::ReadI32NBits(len) => {
+                let len = usize::from(*len);
+                quote! {
+                    let #value = reader.read_i32_n_bits(#len)?;
+                }
+            }
+        }
+    }
+
+    pub fn from_type_and_len(_type: FieldType, len: u8) -> Result<Self, String> {
+        if len == 0 || len > 32 {
+            return Err(format!(
+                "invlid length ({}) to determine encoding function",
+                len
+            ));
+        }
+        match _type {
+            FieldType::Bool => {
+                if len == 1 {
+                    Ok(DecodingFunction::ReadBool)
+                } else {
+                    Err("invalid bool length".into())
+                }
+            }
+            FieldType::U8 => {
+                if len == 8 {
+                    Ok(DecodingFunction::ReadU8)
+                } else if len < 8 {
+                    Ok(DecodingFunction::ReadU8NBits(len))
+                } else {
+                    Err("invlid type and length combination".into())
+                }
+            }
+            FieldType::I8 => {
+                if len == 8 {
+                    Ok(DecodingFunction::ReadI8)
+                } else if len < 8 {
+                    Ok(DecodingFunction::ReadI8NBits(len))
+                } else {
+                    Err("invlid type and length combination".into())
+                }
+            }
+            FieldType::U16 => {
+                if len == 16 {
+                    Ok(DecodingFunction::ReadU16)
+                } else if len < 16 {
+                    Ok(DecodingFunction::ReadU16NBits(len))
+                } else {
+                    Err("invlid type and length combination".into())
+                }
+            }
+            FieldType::I16 => {
+                if len == 16 {
+                    Ok(DecodingFunction::ReadI16)
+                } else if len < 16 {
+                    Ok(DecodingFunction::ReadI16NBits(len))
+                } else {
+                    Err("invlid type and length combination".into())
+                }
+            }
+            FieldType::U32 => {
+                if len == 32 {
+                    Ok(DecodingFunction::ReadU32)
+                } else if len < 32 {
+                    Ok(DecodingFunction::ReadU32NBits(len))
+                } else {
+                    Err("invlid type and length combination".into())
+                }
+            }
+            FieldType::I32 => {
+                if len == 32 {
+                    Ok(DecodingFunction::ReadI32)
+                } else if len < 32 {
+                    Ok(DecodingFunction::ReadI32NBits(len))
+                } else {
+                    Err("invlid type and length combination".into())
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BCPFieldBinding {
     pub(crate) name: String,
@@ -263,6 +416,20 @@ impl EncodingFunctionCall {
     }
 }
 
+pub struct DecodingFunctionCall {
+    function: DecodingFunction,
+    field_name: Ident,
+}
+
+impl DecodingFunctionCall {
+    pub fn to_tokens(&self) -> TokenStream {
+        let field_name = &self.field_name;
+
+        self.function.to_call_tokens(quote! {
+            #field_name
+        })
+    }
+}
 pub fn get_encoding_function_calls(
     fields: &[BCPFieldBinding],
 ) -> io::Result<Vec<EncodingFunctionCall>> {
@@ -270,6 +437,21 @@ pub fn get_encoding_function_calls(
     for field in fields {
         calls.push(EncodingFunctionCall {
             function: EncodingFunction::from_type_and_len(field._type, field.len)
+                .map_err(invalid_data)?,
+            field_name: rust_ident(&field.name.to_case(Case::Snake), "field")?,
+        });
+    }
+
+    Ok(calls)
+}
+
+pub fn get_decoding_function_calls(
+    fields: &[BCPFieldBinding],
+) -> io::Result<Vec<DecodingFunctionCall>> {
+    let mut calls: Vec<DecodingFunctionCall> = Vec::new();
+    for field in fields {
+        calls.push(DecodingFunctionCall {
+            function: DecodingFunction::from_type_and_len(field._type, field.len)
                 .map_err(invalid_data)?,
             field_name: rust_ident(&field.name.to_case(Case::Snake), "field")?,
         });
@@ -314,6 +496,18 @@ pub fn generate_message_binding(msg: &BCPMessage) -> std::io::Result<BCPBinding>
         .map(|call| call.to_tokens())
         .collect::<Vec<_>>();
 
+    let decoding_function_calls = get_decoding_function_calls(&field_bindings)?;
+
+    let decoding_call_tokens = decoding_function_calls
+        .iter()
+        .map(|call| call.to_tokens())
+        .collect::<Vec<_>>();
+
+    let field_names = field_bindings
+        .iter()
+        .map(|f| rust_ident(&f.name.to_case(Case::Snake), "field"))
+        .collect::<io::Result<Vec<_>>>()?;
+
     let tokens = quote! {
         pub const #msg_id_const_ident_name: u16 = #msg_id_value;
         pub const #msg_len_const_ident_name: u8 = #msg_len_value;
@@ -330,6 +524,24 @@ pub fn generate_message_binding(msg: &BCPMessage) -> std::io::Result<BCPBinding>
                 #(#encoding_call_tokens)*
                 bits.append_crc();
                 bits
+            }
+
+            pub fn decode(&self, bits: &crate::codec::Bits) -> Result<Self, crate::codec::DecodeError> {
+                let mut reader = bits.reader();
+                let id = reader.read_id()?;
+                if id != #msg_id_const_ident_name {
+                    return Err(crate::codec::DecodeError::InvalidId)
+                }
+                let len = reader.read_len()?;
+                if len != #msg_len_const_ident_name {
+                    return Err(crate::codec::DecodeError::InvalidLen)
+                }
+
+                #(#decoding_call_tokens)*
+
+                Ok(Self{
+                    #(#field_names,)*
+                })
             }
         }
     };
@@ -371,18 +583,3 @@ const RUST_KEYWORDS: &[&str] = &[
     "unsafe", "use", "where", "while", "abstract", "become", "box", "do", "final", "macro",
     "override", "priv", "try", "typeof", "unsized", "virtual", "yield",
 ];
-
-/*
-impl MsgB {
-    pub fn encode(&self) -> crate::codec::Bits {
-        let mut bits = crate::codec::Bits::new();
-
-        bits.push_header(MSG_B_ID, MSG_B_LEN);
-        bits.push_u8(self.count_1);
-        bits.push_i8(self.count_2);
-        bits.append_crc();
-        bits
-    }
-
-    pub fn unpack() {}
-} */
