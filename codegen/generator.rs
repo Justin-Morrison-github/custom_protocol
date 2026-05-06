@@ -351,6 +351,7 @@ pub struct BCPFieldBinding {
     pub(crate) name: String,
     pub(crate) _type: FieldType,
     pub(crate) len: u8,
+    pub(crate) description: String,
 }
 
 fn determine_field_type(len: u8, sign: Sign) -> Result<FieldType, String> {
@@ -392,9 +393,10 @@ pub fn gather_field_bindings(msg: &BCPMessage) -> Result<Vec<BCPFieldBinding>, S
     let mut fields: Vec<BCPFieldBinding> = Vec::new();
     for field in &msg.fields {
         fields.push(BCPFieldBinding {
-            name: field.name.clone(),
+            name: field.name.to_case(Case::Snake).clone(),
             _type: determine_field_type(field.len, field.sign)?,
             len: field.len,
+            description: field.description.clone(),
         });
     }
     Ok(fields)
@@ -508,10 +510,12 @@ pub fn generate_message_binding(msg: &BCPMessage) -> std::io::Result<BCPBinding>
         .map(|f| rust_ident(&f.name.to_case(Case::Snake), "field"))
         .collect::<io::Result<Vec<_>>>()?;
 
+    let doc_tokens = generate_documentation_tokens(msg, field_bindings);
     let tokens = quote! {
         use crate::codec::{DecodeError, Bits};
         pub const #msg_id_const_ident_name: u16 = #msg_id_value;
         pub const #msg_len_const_ident_name: u8 = #msg_len_value;
+        #(#doc_tokens)*
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct #struct_name {
@@ -551,6 +555,30 @@ pub fn generate_message_binding(msg: &BCPMessage) -> std::io::Result<BCPBinding>
         file,
         contents: render_tokens(tokens)?,
     })
+}
+
+fn generate_documentation_tokens(
+    msg: &BCPMessage,
+    field_bindings: Vec<BCPFieldBinding>,
+) -> Vec<TokenStream> {
+    let blank = "".to_string();
+    let description_heading = format!(" ## Description");
+    let description = format!(" {}", msg.info.description);
+
+    let field_docs: Vec<TokenStream> = std::iter::once(quote! {
+        #[doc = #description_heading]
+        #[doc = #description]
+        #[doc = #blank]
+    })
+    .chain(field_bindings.iter().map(|field| {
+        let name = format!("- [`{}`]: {}", field.name, field.description);
+        quote! {
+            #[doc = #name]
+        }
+    }))
+    .collect();
+
+    field_docs
 }
 
 fn render_tokens(tokens: TokenStream) -> io::Result<String> {

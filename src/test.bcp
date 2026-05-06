@@ -1,8 +1,8 @@
-MESSAGE A[1] 1 "Description 1" {
-    FIELD a: 0|1|+ "A";
+MESSAGE A[1] 1 "Models the connection status flag " {
+    FIELD isConnected: 0|1|+ "Connection Status: 1 if connected, 0 if not";
 }
 
-MESSAGE B[2] 2 "Description 2" {
-    FIELD Count1: 0|8|+ "Positive counter";
-    FIELD count2: 8|8|- "Negative counter";
+MESSAGE B[2] 2 "Launch control timer counters" {
+    FIELD ticks: 0|8|+ "Time in air post launch in seconds";
+    FIELD status: 8|8|- "Status, negative if failure";
 }
