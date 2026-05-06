@@ -11,6 +11,8 @@ pub fn calc_crc(bytes: &[u8]) -> u32 {
     CASTAGNOLI.checksum(bytes)
 }
 
+pub type DecodeResult<T> = Result<T, DecodeError>;
+
 pub enum DecodeError {
     TooManyBits,
     UnexpectedEnd,
@@ -121,6 +123,20 @@ impl Bits {
 }
 
 impl<'a> BitsReader<'a> {
+    pub fn validate_id(&self, read_id: u16, actual_id: u16) -> DecodeResult<()> {
+        if read_id != actual_id {
+            return Err(DecodeError::InvalidId);
+        }
+        Ok(())
+    }
+
+    pub fn validate_len(&self, read_len: u8, actual_len: u8) -> DecodeResult<()> {
+        if read_len != actual_len {
+            return Err(DecodeError::InvalidLen);
+        }
+        Ok(())
+    }
+
     pub fn read_id(&mut self) -> Result<u16, DecodeError> {
         self.read_u16_n_bits(ID_BITS)
     }

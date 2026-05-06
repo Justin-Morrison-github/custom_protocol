@@ -509,6 +509,7 @@ pub fn generate_message_binding(msg: &BCPMessage) -> std::io::Result<BCPBinding>
         .collect::<io::Result<Vec<_>>>()?;
 
     let tokens = quote! {
+        use crate::codec::{DecodeError, Bits};
         pub const #msg_id_const_ident_name: u16 = #msg_id_value;
         pub const #msg_len_const_ident_name: u8 = #msg_len_value;
 
@@ -518,24 +519,22 @@ pub fn generate_message_binding(msg: &BCPMessage) -> std::io::Result<BCPBinding>
         }
 
         impl #struct_name {
-            pub fn encode(&self) -> crate::codec::Bits {
-                let mut bits = crate::codec::Bits::new();
+            pub fn encode(&self) -> Bits {
+                let mut bits = Bits::new();
                 bits.push_header(#msg_id_const_ident_name, #msg_len_const_ident_name);
                 #(#encoding_call_tokens)*
                 bits.append_crc();
                 bits
             }
 
-            pub fn decode(&self, bits: &crate::codec::Bits) -> Result<Self, crate::codec::DecodeError> {
+            pub fn decode(&self, bits: &Bits) -> Result<Self, DecodeError> {
                 let mut reader = bits.reader();
+
                 let id = reader.read_id()?;
-                if id != #msg_id_const_ident_name {
-                    return Err(crate::codec::DecodeError::InvalidId)
-                }
+                reader.validate_id(id, #msg_id_const_ident_name)?;
+
                 let len = reader.read_len()?;
-                if len != #msg_len_const_ident_name {
-                    return Err(crate::codec::DecodeError::InvalidLen)
-                }
+                reader.validate_len(len, #msg_len_const_ident_name)?;
 
                 #(#decoding_call_tokens)*
 
