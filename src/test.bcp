@@ -1,8 +1,19 @@
-MESSAGE A[1] 1 "Models the connection status flag " {
+MESSAGE Connection[1] 1 "Models the connection status flag " {
     FIELD isConnected: 0|1|+ "Connection Status: 1 if connected, 0 if not";
 }
 
-MESSAGE B[2] 2 "Launch control timer counters" {
+MESSAGE Counter[2] 2 "Launch control timer counters" {
     FIELD ticks: 0|8|+ "Time in air post launch in seconds";
     FIELD status: 8|8|- "Status, negative if failure";
+}
+
+MESSAGE Flags[1] 3 "Collection of status flags" {
+    FIELD motor: 0|1|+ "Motor on";
+    FIELD pumps: 1|1|+ "Pumps on";
+    FIELD vents: 2|1|+ "Vents on";
+    FIELD lights: 3|1|+ "Lights ok";
+    FIELD voltageOk: 4|1|+ "Voltage ok";
+    FIELD currentOk: 5|1|+ "Current on";
+    FIELD armed: 6|1|+ "Vehicle is armed";
+    FIELD error: 7|1|+ "Error present";
 }

@@ -469,7 +469,7 @@ pub fn generate_message_binding(msg: &BCPMessage) -> std::io::Result<BCPBinding>
     let msg_len_const_ident_name = rust_ident(&len_const_name, "message len const")?;
 
     let struct_name = rust_ident(
-        &format!("Msg{}", msg.info.name.to_case(Case::Pascal)),
+        &format!("{}Msg", msg.info.name.to_case(Case::Pascal)),
         "message struct",
     )?;
 
@@ -512,7 +512,7 @@ pub fn generate_message_binding(msg: &BCPMessage) -> std::io::Result<BCPBinding>
 
     let doc_tokens = generate_documentation_tokens(msg, field_bindings);
     let tokens = quote! {
-        use crate::codec::{DecodeError, Bits};
+        use crate::codec::{Bits, DecodeError};
         pub const #msg_id_const_ident_name: u16 = #msg_id_value;
         pub const #msg_len_const_ident_name: u8 = #msg_len_value;
         #(#doc_tokens)*

@@ -4,10 +4,10 @@ mod codec;
 #[allow(dead_code)]
 mod generated;
 
-use generated::MsgB;
+use generated::CounterMsg;
 
 fn main() {
-    let a = MsgB {
+    let a = CounterMsg {
         ticks: 1,
         status: -1,
     };
